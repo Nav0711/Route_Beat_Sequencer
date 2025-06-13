@@ -110,45 +110,188 @@ function RouteOptimizer() {
             const distanceMatrix = matrixRes.data.distances; // Road distances in meters
             const durationMatrix = matrixRes.data.durations; // Road durations in seconds
 
-            // Step 2: Implement improved nearest neighbor algorithm using actual road distances
-            const unvisited = new Set(Array.from({ length: selectedOutlets.length }, (_, i) => i + 1));
-            const orderedSequence = [];
-            let currentIndex = 0; // Start from start location (index 0)
-            let totalDistance = 0;
-            let totalDuration = 0;
+            // Step 2: Implement 2-opt optimization algorithm for better route optimization
+            const optimizeRoute = (initialRoute, distanceMatrix) => {
+                let route = [...initialRoute];
+                let improved = true;
+                let iterations = 0;
+                const maxIterations = 100; // Prevent infinite loops
 
-            while (unvisited.size > 0) {
-                let nearestIndex = -1;
-                let shortestDistance = Infinity;
+                while (improved && iterations < maxIterations) {
+                    improved = false;
+                    iterations++;
 
-                // Find nearest unvisited outlet using actual road distance
-                for (const outletIndex of unvisited) {
-                    const roadDistance = distanceMatrix[currentIndex][outletIndex];
-                    if (roadDistance < shortestDistance) {
-                        shortestDistance = roadDistance;
-                        nearestIndex = outletIndex;
+                    // Try all possible 2-opt swaps
+                    for (let i = 1; i < route.length - 2; i++) {
+                        for (let j = i + 1; j < route.length; j++) {
+                            if (j - i === 1) continue; // Skip adjacent edges
+
+                            // Calculate current distance
+                            const currentDistance =
+                                distanceMatrix[route[i - 1]][route[i]] +
+                                distanceMatrix[route[j]][route[j + 1] || route[0]];
+
+                            // Calculate distance after 2-opt swap
+                            const newDistance =
+                                distanceMatrix[route[i - 1]][route[j]] +
+                                distanceMatrix[route[i]][route[j + 1] || route[0]];
+
+                            // If improvement found, apply 2-opt swap
+                            if (newDistance < currentDistance) {
+                                // Reverse the segment between i and j
+                                const newRoute = [
+                                    ...route.slice(0, i),
+                                    ...route.slice(i, j + 1).reverse(),
+                                    ...route.slice(j + 1)
+                                ];
+                                route = newRoute;
+                                improved = true;
+                            }
+                        }
                     }
                 }
 
-                // Add to totals
-                totalDistance += distanceMatrix[currentIndex][nearestIndex];
-                totalDuration += durationMatrix[currentIndex][nearestIndex];
+                return route;
+            };
 
-                // Add to sequence and remove from unvisited
-                orderedSequence.push(nearestIndex - 1); // Convert back to 0-based for selectedOutlets array
-                unvisited.delete(nearestIndex);
-                currentIndex = nearestIndex;
+            // Step 3: Create multiple initial routes using different strategies
+            const createInitialRoutes = () => {
+                const routes = [];
+
+                // Strategy 1: Nearest neighbor from start
+                const nearestNeighborRoute = () => {
+                    const unvisited = new Set(Array.from({ length: selectedOutlets.length }, (_, i) => i + 1));
+                    const route = [0]; // Start with start location
+                    let currentIndex = 0;
+
+                    while (unvisited.size > 0) {
+                        let nearestIndex = -1;
+                        let shortestDistance = Infinity;
+
+                        for (const outletIndex of unvisited) {
+                            const roadDistance = distanceMatrix[currentIndex][outletIndex];
+                            if (roadDistance < shortestDistance) {
+                                shortestDistance = roadDistance;
+                                nearestIndex = outletIndex;
+                            }
+                        }
+
+                        route.push(nearestIndex);
+                        unvisited.delete(nearestIndex);
+                        currentIndex = nearestIndex;
+                    }
+
+                    return route;
+                };
+
+                // Strategy 2: Farthest insertion
+                const farthestInsertionRoute = () => {
+                    if (selectedOutlets.length === 0) return [0];
+
+                    const route = [0]; // Start with start location
+                    const unvisited = new Set(Array.from({ length: selectedOutlets.length }, (_, i) => i + 1));
+
+                    // Find the farthest outlet from start
+                    let farthestIndex = -1;
+                    let maxDistance = -1;
+                    for (const outletIndex of unvisited) {
+                        if (distanceMatrix[0][outletIndex] > maxDistance) {
+                            maxDistance = distanceMatrix[0][outletIndex];
+                            farthestIndex = outletIndex;
+                        }
+                    }
+                    route.push(farthestIndex);
+                    unvisited.delete(farthestIndex);
+
+                    // Insert remaining outlets at the position that minimizes increase
+                    while (unvisited.size > 0) {
+                        let bestOutlet = -1;
+                        let bestPosition = -1;
+                        let minIncrease = Infinity;
+
+                        for (const outletIndex of unvisited) {
+                            for (let pos = 1; pos <= route.length; pos++) {
+                                const prev = route[pos - 1];
+                                const next = route[pos] || route[0];
+
+                                const currentDistance = distanceMatrix[prev][next];
+                                const newDistance = distanceMatrix[prev][outletIndex] + distanceMatrix[outletIndex][next];
+                                const increase = newDistance - currentDistance;
+
+                                if (increase < minIncrease) {
+                                    minIncrease = increase;
+                                    bestOutlet = outletIndex;
+                                    bestPosition = pos;
+                                }
+                            }
+                        }
+
+                        route.splice(bestPosition, 0, bestOutlet);
+                        unvisited.delete(bestOutlet);
+                    }
+
+                    return route;
+                };
+
+                // Strategy 3: Geographic clustering approach
+                const geographicClusterRoute = () => {
+                    if (selectedOutlets.length === 0) return [0];
+
+                    // Calculate centroid
+                    const centroidLat = selectedOutlets.reduce((sum, outlet) => sum + outlet.lat, 0) / selectedOutlets.length;
+                    const centroidLng = selectedOutlets.reduce((sum, outlet) => sum + outlet.lng, 0) / selectedOutlets.length;
+
+                    // Sort outlets by angle from centroid (clockwise sweep)
+                    const outletsWithAngle = selectedOutlets.map((outlet, index) => ({
+                        index: index + 1,
+                        angle: Math.atan2(outlet.lat - centroidLat, outlet.lng - centroidLng)
+                    }));
+
+                    outletsWithAngle.sort((a, b) => a.angle - b.angle);
+                    return [0, ...outletsWithAngle.map(item => item.index)];
+                };
+
+                routes.push(nearestNeighborRoute());
+                routes.push(farthestInsertionRoute());
+                routes.push(geographicClusterRoute());
+
+                return routes;
+            };
+
+            // Step 4: Generate and optimize multiple routes
+            const initialRoutes = createInitialRoutes();
+            const optimizedRoutes = initialRoutes.map(route => optimizeRoute(route, distanceMatrix));
+
+            // Step 5: Select the best route based on total distance
+            let bestRoute = null;
+            let bestTotalDistance = Infinity;
+            let bestTotalDuration = 0;
+
+            for (const route of optimizedRoutes) {
+                let totalDistance = 0;
+                let totalDuration = 0;
+
+                for (let i = 0; i < route.length - 1; i++) {
+                    totalDistance += distanceMatrix[route[i]][route[i + 1]];
+                    totalDuration += durationMatrix[route[i]][route[i + 1]];
+                }
+
+                if (totalDistance < bestTotalDistance) {
+                    bestTotalDistance = totalDistance;
+                    bestTotalDuration = totalDuration;
+                    bestRoute = route;
+                }
             }
 
             // Store accurate route stats
-            setRouteDistance((totalDistance / 1000).toFixed(2)); // Convert to km
-            setRouteDuration((totalDuration / 60).toFixed(0)); // Convert to minutes
+            setRouteDistance((bestTotalDistance / 1000).toFixed(2)); // Convert to km
+            setRouteDuration((bestTotalDuration / 60).toFixed(0)); // Convert to minutes
 
-            // Step 3: Create ordered outlets and coordinates for route visualization
-            const orderedOutlets = orderedSequence.map(i => selectedOutlets[i]);
+            // Step 6: Create ordered outlets and coordinates for route visualization
+            const orderedOutlets = bestRoute.slice(1).map(i => selectedOutlets[i - 1]); // Remove start location and convert indices
             const orderedCoords = [startCoord, ...orderedOutlets.map(outlet => [outlet.lat, outlet.lng])];
 
-            // Step 4: Get detailed route geometry for visualization
+            // Step 7: Get detailed route geometry for visualization
             const directionsRes = await axios.post('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {
                 coordinates: orderedCoords.map(coord => [coord[1], coord[0]]) // Convert to [lng, lat]
             }, {
@@ -156,68 +299,128 @@ function RouteOptimizer() {
                     'Authorization': import.meta.env.VITE_ORS_API_KEY,
                     'Content-Type': 'application/json'
                 }
-
             });
 
             const geometry = directionsRes.data.features[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
 
-            // Step 5: Clear existing layers and add new route
+            // Step 8: Clear existing layers and add new route
             map.eachLayer(layer => {
                 if (layer instanceof L.Polyline || layer instanceof L.Marker) {
                     map.removeLayer(layer);
                 }
             });
 
-            // Add route polyline
-            L.polyline(geometry, {
+            // Add route polyline with gradient color to show direction
+            const routePolyline = L.polyline(geometry, {
                 color: 'blue',
                 weight: 4,
                 opacity: 0.8
             }).addTo(map);
 
-            // Step 6: Add markers with sequence numbers
+            // Add direction arrows along the route
+            const addDirectionArrows = (polyline) => {
+                const latlngs = polyline.getLatLngs();
+                const arrowSpacing = Math.max(1, Math.floor(latlngs.length / 10)); // Add ~10 arrows
+
+                for (let i = arrowSpacing; i < latlngs.length; i += arrowSpacing) {
+                    const start = latlngs[i - 1];
+                    const end = latlngs[i];
+                    const bearing = calculateBearing(start, end);
+
+                    const arrowIcon = L.divIcon({
+                        className: 'direction-arrow',
+                        html: `<div style="
+                        transform: rotate(${bearing}deg);
+                        font-size: 16px;
+                        color: #007bff;
+                        text-shadow: 1px 1px 2px white;
+                    ">➤</div>`,
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    });
+
+                    L.marker(end, { icon: arrowIcon }).addTo(map);
+                }
+            };
+
+            const calculateBearing = (start, end) => {
+                const deltaLng = end.lng - start.lng;
+                const deltaLat = end.lat - start.lat;
+                const bearing = Math.atan2(deltaLng, deltaLat) * (180 / Math.PI);
+                return bearing;
+            };
+
+            addDirectionArrows(routePolyline);
+
+            // Step 9: Add markers with sequence numbers and enhanced styling
             orderedCoords.forEach((coord, index) => {
                 const outlet = index > 0 ? orderedOutlets[index - 1] : null;
 
                 const customIcon = L.divIcon({
                     className: 'custom-div-icon',
-                    html: `<div style="background-color: ${index === 0 ? '#ff4757' : '#4ecdc4'}; 
-                width: 30px; 
-                height: 30px; 
-                border-radius: 50%; 
-                border: 3px solid white;
-                box-shadow: 0 3px 8px rgba(0,0,0,0.3);
-                display: flex;
-                align-items: center;
-                justify-content: center;">
-                <span style="color: white; 
-                            font-weight: bold; 
-                            font-size: 12px;">
-                    ${index === 0 ? 'S' : index}
-                </span>
-            </div>`,
-                    iconSize: [30, 30],
-                    iconAnchor: [15, 15]
+                    html: `<div style="
+                    background: ${index === 0 ?
+                            'linear-gradient(135deg, #ff4757, #ff3742)' :
+                            'linear-gradient(135deg, #4ecdc4, #44a08d)'
+                        }; 
+                    width: 35px; 
+                    height: 35px; 
+                    border-radius: 50%; 
+                    border: 3px solid white;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    position: relative;
+                ">
+                    <span style="
+                        color: white; 
+                        font-weight: bold; 
+                        font-size: 14px;
+                        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+                    ">
+                        ${index === 0 ? 'S' : index}
+                    </span>
+                    ${index > 0 ? `<div style="
+                        position: absolute;
+                        top: -8px;
+                        right: -8px;
+                        background: #007bff;
+                        color: white;
+                        border-radius: 50%;
+                        width: 16px;
+                        height: 16px;
+                        font-size: 10px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-weight: bold;
+                    ">${index}</div>` : ''}
+                </div>`,
+                    iconSize: [35, 35],
+                    iconAnchor: [17.5, 17.5]
                 });
 
                 const popupContent = index === 0
-                    ? '<strong>Start Location</strong>'
-                    : `<strong>Stop ${index}</strong><br>
-               Outlet ID: ${outlet?.outlet}<br>
-               Name: ${outlet?.outletName || 'N/A'}<br>
-               <small>Optimized by road distance</small>`;
+                    ? '<strong>🏁 Start Location</strong><br><small>Route optimization complete</small>'
+                    : `<strong>📍 Stop ${index}</strong><br>
+                   <b>Outlet ID:</b> ${outlet?.outlet}<br>
+                   <b>Name:</b> ${outlet?.outletName || 'N/A'}<br>
+                   <b>Coordinates:</b> ${outlet?.lat.toFixed(6)}, ${outlet?.lng.toFixed(6)}<br>
+                   <small style="color: #007bff;">✓ Optimized with 2-opt algorithm</small>`;
 
                 L.marker(coord, { icon: customIcon }).addTo(map).bindPopup(popupContent);
             });
 
-            // Step 7: Fit map to route bounds
+            // Step 10: Fit map to route bounds with better padding
             const bounds = L.latLngBounds(geometry);
-            map.fitBounds(bounds, { padding: [50, 50] });
+            map.fitBounds(bounds, { padding: [60, 60] });
 
             // Update state with optimized sequence
             setOptimizedSequence(orderedOutlets);
 
-            console.log('Route optimized successfully using road distances');
+            console.log(`Route optimized successfully using 2-opt algorithm. Total distance: ${(bestTotalDistance / 1000).toFixed(2)} km`);
+            console.log(`Optimization completed in multiple strategies with best route selected.`);
 
         } catch (err) {
             console.error("Route optimization error:", err.response?.data || err.message);
