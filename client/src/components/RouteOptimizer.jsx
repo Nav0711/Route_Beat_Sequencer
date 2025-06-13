@@ -102,7 +102,7 @@ function RouteOptimizer() {
                 metrics: ["distance", "duration"]
             }, {
                 headers: {
-                    'Authorization': import.meta.env.VITE_ORS_API_KEY,
+                    'Authorization': '5b3ce3597851110001cf6248ccd9c789e43b40f68dcd6b6e6b9c1fd1',
                     'Content-Type': 'application/json'
                 }
             });
@@ -427,8 +427,6 @@ function RouteOptimizer() {
             alert("Failed to optimize route. Please check your API key and network connection.");
         }
     };
-
-    
     const downloadOptimizedRoute = () => {
         if (optimizedSequence.length === 0) {
             alert("No optimized route available. Please generate a route first.");
