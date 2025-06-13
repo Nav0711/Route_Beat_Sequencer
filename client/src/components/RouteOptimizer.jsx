@@ -318,30 +318,7 @@ function RouteOptimizer() {
             }).addTo(map);
 
             // Add direction arrows along the route
-            const addDirectionArrows = (polyline) => {
-                const latlngs = polyline.getLatLngs();
-                const arrowSpacing = Math.max(1, Math.floor(latlngs.length / 10)); // Add ~10 arrows
 
-                for (let i = arrowSpacing; i < latlngs.length; i += arrowSpacing) {
-                    const start = latlngs[i - 1];
-                    const end = latlngs[i];
-                    const bearing = calculateBearing(start, end);
-
-                    const arrowIcon = L.divIcon({
-                        className: 'direction-arrow',
-                        html: `<div style="
-                        transform: rotate(${bearing}deg);
-                        font-size: 16px;
-                        color: #007bff;
-                        text-shadow: 1px 1px 2px white;
-                    ">➤</div>`,
-                        iconSize: [20, 20],
-                        iconAnchor: [10, 10]
-                    });
-
-                    L.marker(end, { icon: arrowIcon }).addTo(map);
-                }
-            };
 
             const calculateBearing = (start, end) => {
                 const deltaLng = end.lng - start.lng;
@@ -350,18 +327,23 @@ function RouteOptimizer() {
                 return bearing;
             };
 
-            addDirectionArrows(routePolyline);
-
             // Step 9: Add markers with sequence numbers and enhanced styling
             orderedCoords.forEach((coord, index) => {
                 const outlet = index > 0 ? orderedOutlets[index - 1] : null;
 
+                const RandomColor = () => {
+                    const letters = '0123456789ABCDEF';
+                    let color = '#';
+                    for (let i = 0; i < 6; i++) {
+                        color += letters[Math.floor(Math.random() * 16)];
+                    }
+
                 const customIcon = L.divIcon({
                     className: 'custom-div-icon',
                     html: `<div style="
-                    background: ${index === 0 ?
-                            'linear-gradient(135deg, #ff4757, #ff3742)' :
-                            'linear-gradient(135deg, #4ecdc4, #44a08d)'
+                    background-color: ${index === 0 ?
+                            'linear-gradient(135deg,rgb(255, 0, 21), #ff3742)' :
+                            `linear-gradient(135deg, ${RandomColor()}, ${RandomColor()})`
                         }; 
                     width: 35px; 
                     height: 35px; 
