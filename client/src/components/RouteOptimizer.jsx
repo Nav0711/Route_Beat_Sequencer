@@ -102,7 +102,7 @@ function RouteOptimizer() {
                 metrics: ["distance", "duration"]
             }, {
                 headers: {
-                    'Authorization': '5b3ce3597851110001cf6248ccd9c789e43b40f68dcd6b6e6b9c1fd1',
+                    'Authorization': import.meta.env.VITE_ORS_API_KEY,
                     'Content-Type': 'application/json'
                 }
             });
@@ -318,7 +318,18 @@ function RouteOptimizer() {
             }).addTo(map);
 
             // Add direction arrows along the route
+            const addDirectionArrows = (polyline) => {
+                const latlngs = polyline.getLatLngs();
+                const arrowSpacing = Math.max(1, Math.floor(latlngs.length / 10)); // Add ~10 arrows
 
+                for (let i = arrowSpacing; i < latlngs.length; i += arrowSpacing) {
+                    const start = latlngs[i - 1];
+                    const end = latlngs[i];
+                    const bearing = calculateBearing(start, end);
+
+                    
+                }
+            };
 
             const calculateBearing = (start, end) => {
                 const deltaLng = end.lng - start.lng;
@@ -326,6 +337,8 @@ function RouteOptimizer() {
                 const bearing = Math.atan2(deltaLng, deltaLat) * (180 / Math.PI);
                 return bearing;
             };
+
+            addDirectionArrows(routePolyline);
 
             // Step 9: Add markers with sequence numbers and enhanced styling
             orderedCoords.forEach((coord, index) => {
@@ -337,13 +350,15 @@ function RouteOptimizer() {
                     for (let i = 0; i < 6; i++) {
                         color += letters[Math.floor(Math.random() * 16)];
                     }
+                    return color;
+                }
 
                 const customIcon = L.divIcon({
                     className: 'custom-div-icon',
                     html: `<div style="
-                    background-color: ${index === 0 ?
-                            'linear-gradient(135deg,rgb(255, 0, 21), #ff3742)' :
-                            `linear-gradient(135deg, ${RandomColor()}, ${RandomColor()})`
+                    background: ${index === 0 ?
+                            'linear-gradient(135deg, #ff4757, #ff3742)' :
+                            `${RandomColor()}`
                         }; 
                     width: 35px; 
                     height: 35px; 
