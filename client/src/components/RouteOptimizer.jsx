@@ -154,6 +154,8 @@ function RouteOptimizer() {
                 return route;
             };
 
+            
+
             // Step 3: Create multiple initial routes using different strategies
             const createInitialRoutes = () => {
                 const routes = [];
@@ -424,6 +426,8 @@ function RouteOptimizer() {
             alert("Failed to optimize route. Please check your API key and network connection.");
         }
     };
+
+    
     const downloadOptimizedRoute = () => {
         if (optimizedSequence.length === 0) {
             alert("No optimized route available. Please generate a route first.");
