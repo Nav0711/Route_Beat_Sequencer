@@ -497,24 +497,24 @@ function RouteOptimizer() {
             console.log("Applying advanced 2-opt optimization...");
             bestRoute = advancedTwoOptOptimization(bestRoute, distanceMatrix);
 
-            if (bestRoute.length > 1) {
-                // Find the outlet farthest from the start (index 0)
-                let maxDist = -1;
-                let farthestIdx = 1;
+            if (bestRoute.length > 2) {
+                // Find the index of the outlet nearest to the start (index 0)
+                let minDist = Infinity;
+                let nearestIdxInRoute = -1;
                 for (let i = 1; i < bestRoute.length; i++) {
                     const dist = distanceMatrix[0][bestRoute[i]];
-                    if (dist > maxDist) {
-                        maxDist = dist;
-                        farthestIdx = i;
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearestIdxInRoute = i;
                     }
                 }
-                // Rotate the route so that the farthest outlet is last
-                if (farthestIdx !== bestRoute.length - 1) {
-                    const reordered = [
-                        ...bestRoute.slice(0, farthestIdx + 1),
-                        ...bestRoute.slice(farthestIdx + 1)
-                    ];
-                    bestRoute = reordered;
+                // Move the nearest outlet to position 1 (right after start)
+                if (nearestIdxInRoute > 1) {
+                    const nearestOutlet = bestRoute[nearestIdxInRoute];
+                    bestRoute.splice(nearestIdxInRoute, 1); // Remove from current position
+                    bestRoute.splice(1, 0, nearestOutlet);  // Insert at position 1
+                } else if (nearestIdxInRoute === 0) {
+                    // Should never happen, but just in case, do nothing
                 }
             }
 
