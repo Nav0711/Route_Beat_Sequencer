@@ -288,7 +288,7 @@ function RouteOptimizer() {
         }
 
         try {
-            console.log("Starting enhanced route optimization for dense clusters...");
+            console.log("Starting enhanced route optimization with multiple options...");
             console.log("Start coordinates:", startCoord);
             console.log("Number of outlets:", selectedOutlets.length);
 
@@ -312,45 +312,195 @@ function RouteOptimizer() {
 
             const n = selectedOutlets.length;
 
-            // Step 1: Nearest Neighbor for initial route
-            const nnRoute = buildNearestNeighborRoute(distanceMatrix, n);
+            // Enhanced sequence optimization for better outlet flow
+            function optimizeSequenceFlow(route, distanceMatrix, outlets, startCoord, clusterRadius = 2000) {
+                if (route.length <= 2) return route;
 
-            // Step 2: 2-Opt optimization
-            const optimizedRoute = twoOpt(nnRoute, distanceMatrix);
+                const outletCoords = route.slice(1).map(i => ({
+                    index: i,
+                    lat: outlets[i - 1].lat,
+                    lng: outlets[i - 1].lng
+                }));
 
-            // Use optimizedRoute for further processing (display, metrics, etc.)
-            let bestRoute = optimizedRoute;
+                const clusters = [];
+                const visited = new Set();
 
-            if (bestRoute.length > 2) {
-                // Find the index of the outlet nearest to the start (index 0)
-                let minDist = Infinity;
-                let nearestIdxInRoute = -1;
-                for (let i = 1; i < bestRoute.length; i++) {
-                    const dist = distanceMatrix[0][bestRoute[i]];
-                    if (dist < minDist) {
-                        minDist = dist;
-                        nearestIdxInRoute = i;
+                outletCoords.forEach(outlet => {
+                    if (visited.has(outlet.index)) return;
+
+                    const cluster = [outlet];
+                    visited.add(outlet.index);
+
+                    outletCoords.forEach(other => {
+                        if (visited.has(other.index)) return;
+
+                        const distance = calculateHaversineDistance(
+                            outlet.lat, outlet.lng,
+                            other.lat, other.lng
+                        );
+
+                        if (distance <= clusterRadius) {
+                            cluster.push(other);
+                            visited.add(other.index);
+                        }
+                    });
+
+                    clusters.push(cluster);
+                });
+
+                clusters.sort((a, b) => {
+                    const avgA = a.reduce((sum, outlet) =>
+                        sum + distanceMatrix[0][outlet.index], 0) / a.length;
+                    const avgB = b.reduce((sum, outlet) =>
+                        sum + distanceMatrix[0][outlet.index], 0) / b.length;
+                    return avgA - avgB;
+                });
+
+                const optimizedRoute = [0];
+
+                clusters.forEach(cluster => {
+                    if (cluster.length === 1) {
+                        optimizedRoute.push(cluster[0].index);
+                    } else {
+                        const clusterIndices = cluster.map(c => c.index);
+                        const lastInRoute = optimizedRoute[optimizedRoute.length - 1];
+
+                        let bestEntry = clusterIndices[0];
+                        let minEntryDist = distanceMatrix[lastInRoute][bestEntry];
+
+                        clusterIndices.forEach(idx => {
+                            if (distanceMatrix[lastInRoute][idx] < minEntryDist) {
+                                minEntryDist = distanceMatrix[lastInRoute][idx];
+                                bestEntry = idx;
+                            }
+                        });
+
+                        const clusterRoute = [bestEntry];
+                        const remaining = clusterIndices.filter(i => i !== bestEntry);
+
+                        while (remaining.length > 0) {
+                            const current = clusterRoute[clusterRoute.length - 1];
+                            let nearest = remaining[0];
+                            let nearestDist = distanceMatrix[current][nearest];
+
+                            remaining.forEach(idx => {
+                                if (distanceMatrix[current][idx] < nearestDist) {
+                                    nearestDist = distanceMatrix[current][idx];
+                                    nearest = idx;
+                                }
+                            });
+
+                            clusterRoute.push(nearest);
+                            remaining.splice(remaining.indexOf(nearest), 1);
+                        }
+
+                        optimizedRoute.push(...clusterRoute);
                     }
-                }
-                // Move the nearest outlet to position 1 (right after start)
-                if (nearestIdxInRoute > 1) {
-                    const nearestOutlet = bestRoute[nearestIdxInRoute];
-                    bestRoute.splice(nearestIdxInRoute, 1); // Remove from current position
-                    bestRoute.splice(1, 0, nearestOutlet);  // Insert at position 1
-                } else if (nearestIdxInRoute === 0) {
-                    // Should never happen, but just in case, do nothing
-                }
+                });
+
+                return optimizedRoute;
             }
 
-            // Calculate final metrics
-            const bestDistance = calculateRouteDistance(bestRoute, distanceMatrix, false);
-            const bestDuration = calculateRouteDuration(bestRoute, durationMatrix, false);
+            // Geographic-based route (sorted by distance from start)
+            function buildGeographicRoute(distanceMatrix, n) {
+                const outlets = Array.from({ length: n }, (_, i) => i + 1);
+                outlets.sort((a, b) => distanceMatrix[0][a] - distanceMatrix[0][b]);
+                return [0, ...outlets];
+            }
 
-            console.log(`Final optimized route: ${(bestDistance / 1000).toFixed(2)} km, ${(bestDuration / 60).toFixed(0)} min`);
-            console.log("Final route sequence:", bestRoute);
+            // Generate multiple route options
+            console.log("Generating multiple route options...");
+
+            // Option 1: Nearest Neighbor + 2-Opt
+            const nnRoute = buildNearestNeighborRoute(distanceMatrix, n);
+            const option1 = twoOpt(nnRoute, distanceMatrix);
+
+            // Option 2: Farthest Insertion + 2-Opt
+            const fiRoute = buildFarthestInsertionRoute(distanceMatrix, n);
+            const option2 = twoOpt(fiRoute, distanceMatrix);
+
+            // Option 3: Randomized Nearest Neighbor + 2-Opt
+            const rnnRoute = buildRandomizedNearestNeighbor(distanceMatrix, n, 10);
+            const option3 = twoOpt(rnnRoute, distanceMatrix);
+
+            // Option 4: Geographic + 2-Opt
+            const geoRoute = buildGeographicRoute(distanceMatrix, n);
+            const option4 = twoOpt(geoRoute, distanceMatrix);
+
+            // Apply sequence flow optimization to each option with different cluster sizes
+            const sequenceOption1 = optimizeSequenceFlow(option1, distanceMatrix, selectedOutlets, startCoord, 1500); // Tight clusters
+            const sequenceOption2 = optimizeSequenceFlow(option2, distanceMatrix, selectedOutlets, startCoord, 2500); // Medium clusters
+            const sequenceOption3 = optimizeSequenceFlow(option3, distanceMatrix, selectedOutlets, startCoord, 3500); // Loose clusters
+            const sequenceOption4 = optimizeSequenceFlow(option4, distanceMatrix, selectedOutlets, startCoord, 2000); // Standard clusters
+
+            // Calculate metrics for all options
+            const routeOptions = [
+                {
+                    name: "Optimized Distance (Tight Clusters)",
+                    route: sequenceOption1,
+                    distance: calculateRouteDistance(sequenceOption1, distanceMatrix, false),
+                    duration: calculateRouteDuration(sequenceOption1, durationMatrix, false),
+                    description: "Prioritizes shortest distance with tight geographic grouping"
+                },
+                {
+                    name: "Balanced Flow (Medium Clusters)",
+                    route: sequenceOption2,
+                    distance: calculateRouteDistance(sequenceOption2, distanceMatrix, false),
+                    duration: calculateRouteDuration(sequenceOption2, durationMatrix, false),
+                    description: "Balances distance and logical sequence flow"
+                },
+                {
+                    name: "Sequence Flow (Loose Clusters)",
+                    route: sequenceOption3,
+                    distance: calculateRouteDistance(sequenceOption3, distanceMatrix, false),
+                    duration: calculateRouteDuration(sequenceOption3, durationMatrix, false),
+                    description: "Prioritizes smooth sequence flow over distance"
+                },
+                {
+                    name: "Geographic Order",
+                    route: sequenceOption4,
+                    distance: calculateRouteDistance(sequenceOption4, distanceMatrix, false),
+                    duration: calculateRouteDuration(sequenceOption4, durationMatrix, false),
+                    description: "Simple distance-based ordering with clustering"
+                }
+            ];
+
+            // Sort options by distance
+            routeOptions.sort((a, b) => a.distance - b.distance);
+
+            console.log("Route options generated:");
+            routeOptions.forEach((option, index) => {
+                console.log(`${index + 1}. ${option.name}: ${(option.distance / 1000).toFixed(2)}km, ${(option.duration / 60).toFixed(0)}min`);
+            });
+
+            // Present options to user
+            const optionsList = routeOptions.map((option, index) =>
+                `${index + 1}. ${option.name}\n   Distance: ${(option.distance / 1000).toFixed(2)} km | Duration: ${(option.duration / 60).toFixed(0)} min\n   ${option.description}`
+            ).join('\n\n');
+
+            const userChoice = prompt(
+                `🚗 Choose your preferred route optimization:\n\n${optionsList}\n\nEnter option number (1-4), or press Cancel for automatic best:`,
+                "1"
+            );
+
+            let selectedOption;
+            if (userChoice && userChoice >= 1 && userChoice <= 4) {
+                selectedOption = routeOptions[parseInt(userChoice) - 1];
+                console.log(`User selected: ${selectedOption.name}`);
+            } else {
+                selectedOption = routeOptions[0]; // Default to best distance
+                console.log("Using automatic best option (shortest distance)");
+            }
+
+            const finalRoute = selectedOption.route;
+            const bestDistance = selectedOption.distance;
+            const bestDuration = selectedOption.duration;
+
+            console.log(`Selected route (${selectedOption.name}): ${(bestDistance / 1000).toFixed(2)} km, ${(bestDuration / 60).toFixed(0)} min`);
+            console.log("Final route sequence:", finalRoute);
 
             // Prepare and display results
-            const orderedOutlets = bestRoute.slice(1).map(i => selectedOutlets[i - 1]);
+            const orderedOutlets = finalRoute.slice(1).map(i => selectedOutlets[i - 1]);
             const orderedCoords = [startCoord, ...orderedOutlets.map(outlet => [outlet.lat, outlet.lng])];
 
             setRouteDistance((bestDistance / 1000).toFixed(2));
@@ -384,59 +534,139 @@ function RouteOptimizer() {
                 dashArray: '10, 5'
             }).addTo(map);
 
+            // Replace the map visualization section in generateOptimizedRoute function
+            // Find this part in your code and replace it:
+
+            // GROUP OVERLAPPING OUTLETS BEFORE VISUALIZATION
+            const groupedMarkers = [];
+            const OVERLAP_THRESHOLD = 50; // meters - adjust as needed
+
             orderedCoords.forEach((coord, index) => {
                 const outlet = index > 0 ? orderedOutlets[index - 1] : null;
 
+                // Check if this coordinate overlaps with any existing grouped marker
+                let addedToGroup = false;
+
+                for (let group of groupedMarkers) {
+                    const distance = calculateHaversineDistance(
+                        coord[0], coord[1],
+                        group.coord[0], group.coord[1]
+                    );
+
+                    if (distance <= OVERLAP_THRESHOLD) {
+                        // Add to existing group
+                        group.outlets.push({ index, outlet, coord });
+                        addedToGroup = true;
+                        break;
+                    }
+                }
+
+                if (!addedToGroup) {
+                    // Create new group
+                    groupedMarkers.push({
+                        coord: coord,
+                        outlets: [{ index, outlet, coord }]
+                    });
+                }
+            });
+
+            // VISUALIZE GROUPED MARKERS
+            groupedMarkers.forEach(group => {
                 const getMarkerColor = (index) => {
                     if (index === 0) return '#ff4757';
                     const colors = ['#3742fa', '#2ed573', '#ffa502', '#ff6348', '#1e90ff', '#ff1493', '#32cd32', '#ff4500'];
                     return colors[index % colors.length];
                 };
 
+                // Use the first outlet's index for coloring
+                const primaryIndex = group.outlets[0].index;
+
                 const customIcon = L.divIcon({
                     className: 'custom-div-icon',
                     html: `<div style="
-                background: ${getMarkerColor(index)}; 
-                width: 40px; 
-                height: 40px; 
-                border-radius: 50%; 
-                border: 3px solid white;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-weight: bold;
-                color: white;
-                font-size: 16px;
-                text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
-            ">
-                ${index === 0 ? 'S' : index}
-            </div>`,
+            background: ${getMarkerColor(primaryIndex)}; 
+            width: 40px; 
+            height: 40px; 
+            border-radius: 50%; 
+            border: 3px solid white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            font-size: ${group.outlets.length > 1 ? '12px' : '16px'};
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+        ">
+            ${primaryIndex === 0 ? 'S' : (group.outlets.length > 1 ? `${primaryIndex}+` : primaryIndex)}
+        </div>`,
                     iconSize: [40, 40],
                     iconAnchor: [20, 20]
                 });
 
-                const popupContent = index === 0
-                    ? `<div style="min-width: 200px;">
+                // CREATE COMBINED POPUP CONTENT
+                let popupContent = '';
+
+                if (group.outlets.length === 1) {
+                    // Single outlet - use original popup format
+                    const { index, outlet } = group.outlets[0];
+
+                    popupContent = index === 0
+                        ? `<div style="min-width: 200px;">
                  <h4 style="margin: 0 0 10px 0; color: #007bff;">🏁 Start Location</h4>
                  <p style="margin: 5px 0;"><strong>Coordinates:</strong> ${startCoord[0].toFixed(6)}, ${startCoord[1].toFixed(6)}</p>
-                 <p style="margin: 5px 0; color: #28a745; font-size: 12px;">✓ Perfect cluster-aware optimization</p>
+                 <p style="margin: 5px 0; color: #28a745; font-size: 12px;">✓ ${selectedOption.name}</p>
                </div>`
-                    : `<div style="min-width: 250px;">
+                        : `<div style="min-width: 250px;">
                  <h4 style="margin: 0 0 10px 0; color: #007bff;">📍 Stop ${index}</h4>
                  <p style="margin: 5px 0;"><strong>Outlet ID:</strong> ${outlet?.outlet}</p>
                  <p style="margin: 5px 0;"><strong>Name:</strong> ${outlet?.outletName || 'N/A'}</p>
                  <p style="margin: 5px 0;"><strong>Coordinates:</strong> ${outlet?.lat.toFixed(6)}, ${outlet?.lng.toFixed(6)}</p>
-                 <p style="margin: 5px 0; color: #28a745; font-size: 12px;">✓ Micro-cluster optimized</p>
+                 <p style="margin: 5px 0; color: #28a745; font-size: 12px;">✓ ${selectedOption.name}</p>
                </div>`;
+                } else {
+                    // Multiple outlets - create combined popup
+                    const startOutlet = group.outlets.find(o => o.index === 0);
+                    const regularOutlets = group.outlets.filter(o => o.index !== 0);
 
-                L.marker(coord, { icon: customIcon }).addTo(map).bindPopup(popupContent);
+                    popupContent = `<div style="min-width: 300px; max-height: 400px; overflow-y: auto;">`;
+
+                    if (startOutlet) {
+                        popupContent += `
+                <h4 style="margin: 0 0 10px 0; color: #007bff;">🏁 Start Location</h4>
+                <p style="margin: 5px 0;"><strong>Coordinates:</strong> ${startCoord[0].toFixed(6)}, ${startCoord[1].toFixed(6)}</p>
+                <hr style="margin: 10px 0; border: 1px solid #eee;">
+            `;
+                    }
+
+                    if (regularOutlets.length > 0) {
+                        popupContent += `<h4 style="margin: 0 0 10px 0; color: #007bff;">📍 ${regularOutlets.length} Overlapping Stops</h4>`;
+
+                        regularOutlets.forEach(({ index, outlet }, i) => {
+                            popupContent += `
+                    <div style="background: #f8f9fa; padding: 10px; margin: 5px 0; border-radius: 5px; border-left: 4px solid #007bff;">
+                        <p style="margin: 0 0 5px 0; font-weight: bold;">Stop ${index}</p>
+                        <p style="margin: 2px 0; font-size: 13px;"><strong>Outlet ID:</strong> ${outlet?.outlet}</p>
+                        <p style="margin: 2px 0; font-size: 13px;"><strong>Name:</strong> ${outlet?.outletName || 'N/A'}</p>
+                        <p style="margin: 2px 0; font-size: 13px;"><strong>Coordinates:</strong> ${outlet?.lat.toFixed(6)}, ${outlet?.lng.toFixed(6)}</p>
+                    </div>
+                `;
+                        });
+                    }
+
+                    popupContent += `
+            <p style="margin: 10px 0 0 0; color: #28a745; font-size: 12px; text-align: center;">✓ ${selectedOption.name}</p>
+            </div>
+        `;
+                }
+
+                L.marker(group.coord, { icon: customIcon }).addTo(map).bindPopup(popupContent);
             });
 
             const bounds = L.latLngBounds(geometry);
             map.fitBounds(bounds, { padding: [50, 50] });
 
-            console.log("Perfect cluster-aware route optimization completed successfully!");
+            console.log(`Route optimization completed using: ${selectedOption.name}`);
 
         } catch (err) {
             console.error("Route optimization error:", err);
@@ -714,7 +944,7 @@ function RouteOptimizer() {
                         <div style={{ fontSize: '24px', marginBottom: '15px' }}>🔄</div>
                         <h3 style={{ margin: '0 0 10px 0' }}>Optimizing Route...</h3>
                         <p style={{ margin: '0', color: '#666' }}>
-                           
+
                         </p>
                     </div>
                 </div>
