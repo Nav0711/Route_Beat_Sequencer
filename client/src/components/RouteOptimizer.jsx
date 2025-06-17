@@ -4,6 +4,153 @@ import * as XLSX from 'xlsx';
 import axios from 'axios';
 import 'leaflet/dist/leaflet.css';
 
+// Calculates the total distance of the route using the distance matrix
+function calculateRouteDistance(route, distanceMatrix, isClosed = false) {
+    let total = 0;
+    for (let i = 0; i < route.length - 1; i++) {
+        total += distanceMatrix[route[i]][route[i + 1]];
+    }
+    if (isClosed && route.length > 1) {
+        total += distanceMatrix[route[route.length - 1]][route[0]];
+    }
+    return total;
+}
+
+// Calculates the total duration of the route using the duration matrix
+function calculateRouteDuration(route, durationMatrix, isClosed = false) {
+    let total = 0;
+    for (let i = 0; i < route.length - 1; i++) {
+        total += durationMatrix[route[i]][route[i + 1]];
+    }
+    if (isClosed && route.length > 1) {
+        total += durationMatrix[route[route.length - 1]][route[0]];
+    }
+    return total;
+}
+
+// Nearest Neighbor Algorithm
+function buildNearestNeighborRoute(distanceMatrix, n) {
+    const visited = new Array(n + 1).fill(false);
+    const route = [0];
+    visited[0] = true;
+    for (let step = 0; step < n; step++) {
+        const last = route[route.length - 1];
+        let nearest = -1;
+        let nearestDist = Infinity;
+        for (let i = 1; i <= n; i++) {
+            if (!visited[i] && distanceMatrix[last][i] < nearestDist) {
+                nearestDist = distanceMatrix[last][i];
+                nearest = i;
+            }
+        }
+        if (nearest !== -1) {
+            route.push(nearest);
+            visited[nearest] = true;
+        }
+    }
+    return route;
+}
+
+// Farthest Insertion Algorithm
+function buildFarthestInsertionRoute(distanceMatrix, n) {
+    const visited = new Array(n + 1).fill(false);
+    const route = [0];
+    visited[0] = true;
+    // Find farthest point from start
+    let farthest = 1;
+    let maxDist = -Infinity;
+    for (let i = 1; i <= n; i++) {
+        if (distanceMatrix[0][i] > maxDist) {
+            maxDist = distanceMatrix[0][i];
+            farthest = i;
+        }
+    }
+    route.push(farthest);
+    visited[farthest] = true;
+    while (route.length < n + 1) {
+        // Find unvisited node farthest from any in route
+        let next = -1, nextDist = -Infinity;
+        for (let i = 1; i <= n; i++) {
+            if (!visited[i]) {
+                let minToRoute = Math.min(...route.map(r => distanceMatrix[r][i]));
+                if (minToRoute > nextDist) {
+                    nextDist = minToRoute;
+                    next = i;
+                }
+            }
+        }
+        // Insert at position that minimizes increase in route length
+        let bestPos = 1, bestIncrease = Infinity;
+        for (let j = 1; j < route.length; j++) {
+            let increase = distanceMatrix[route[j - 1]][next] + distanceMatrix[next][route[j]] - distanceMatrix[route[j - 1]][route[j]];
+            if (increase < bestIncrease) {
+                bestIncrease = increase;
+                bestPos = j;
+            }
+        }
+        route.splice(bestPos, 0, next);
+        visited[next] = true;
+    }
+    return route;
+}
+
+// Randomized Nearest Neighbor Algorithm
+function buildRandomizedNearestNeighbor(distanceMatrix, n, trials = 5) {
+    let bestRoute = null;
+    let bestDist = Infinity;
+    for (let t = 0; t < trials; t++) {
+        const visited = new Array(n + 1).fill(false);
+        let route = [0];
+        visited[0] = true;
+        let current = Math.floor(Math.random() * n) + 1;
+        route.push(current);
+        visited[current] = true;
+        for (let step = 1; step < n; step++) {
+            let last = route[route.length - 1];
+            let nearest = -1, nearestDist = Infinity;
+            for (let i = 1; i <= n; i++) {
+                if (!visited[i] && distanceMatrix[last][i] < nearestDist) {
+                    nearestDist = distanceMatrix[last][i];
+                    nearest = i;
+                }
+            }
+            if (nearest !== -1) {
+                route.push(nearest);
+                visited[nearest] = true;
+            }
+        }
+        let dist = calculateRouteDistance(route, distanceMatrix, false);
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestRoute = route;
+        }
+    }
+    return bestRoute;
+}
+
+// 2-Opt Optimization
+function twoOpt(route, distanceMatrix) {
+    let improved = true;
+    let best = route.slice();
+    let bestDist = calculateRouteDistance(best, distanceMatrix, false);
+    while (improved) {
+        improved = false;
+        for (let i = 1; i < best.length - 2; i++) {
+            for (let k = i + 1; k < best.length - 1; k++) {
+                let newRoute = best.slice();
+                newRoute.splice(i, k - i + 1, ...best.slice(i, k + 1).reverse());
+                let newDist = calculateRouteDistance(newRoute, distanceMatrix, false);
+                if (newDist < bestDist) {
+                    best = newRoute;
+                    bestDist = newDist;
+                    improved = true;
+                }
+            }
+        }
+    }
+    return best;
+}
+
 function RouteOptimizer() {
     const mapRef = useRef(null);
     const [map, setMap] = useState(null);
@@ -48,12 +195,15 @@ function RouteOptimizer() {
                 if (!beat || !outlet || !lat || !lng) return;
                 if (!parsed[beat]) parsed[beat] = [];
 
-                parsed[beat].push({
-                    outlet,
-                    lat: parseFloat(lat),
-                    lng: parseFloat(lng),
-                    outletName: outletName || 'N/A'
-                });
+                // Only add if not already present (by Outlet ID)
+                if (!parsed[beat].some(o => o.outlet === outlet)) {
+                    parsed[beat].push({
+                        outlet,
+                        lat: parseFloat(lat),
+                        lng: parseFloat(lng),
+                        outletName: outletName || 'N/A'
+                    });
+                }
             });
 
             setBeatData(parsed);
@@ -160,342 +310,16 @@ function RouteOptimizer() {
             const distanceMatrix = matrixRes.data.distances;
             const durationMatrix = matrixRes.data.durations;
 
-            // Enhanced optimization functions
-            const calculateRouteDistance = (route, matrix, includeReturn = true) => {
-                let totalDistance = 0;
-                for (let i = 0; i < route.length - 1; i++) {
-                    totalDistance += matrix[route[i]][route[i + 1]];
-                }
-                if (includeReturn && route.length > 1) {
-                    totalDistance += matrix[route[route.length - 1]][route[0]];
-                }
-                return totalDistance;
-            };
+            const n = selectedOutlets.length;
 
-            const calculateRouteDuration = (route, matrix, includeReturn = true) => {
-                let totalDuration = 0;
-                for (let i = 0; i < route.length - 1; i++) {
-                    totalDuration += matrix[route[i]][route[i + 1]];
-                }
-                if (includeReturn && route.length > 1) {
-                    totalDuration += matrix[route[route.length - 1]][route[0]];
-                }
-                return totalDuration;
-            };
+            // Step 1: Nearest Neighbor for initial route
+            const nnRoute = buildNearestNeighborRoute(distanceMatrix, n);
 
-            // Advanced cluster detection with micro-clusters for very close outlets
-            const detectAdvancedClusters = () => {
-                const microClusters = []; // Very close outlets (< 500m)
-                const regularClusters = []; // Moderately close outlets (500m - 2km)
-                const visited = new Set();
+            // Step 2: 2-Opt optimization
+            const optimizedRoute = twoOpt(nnRoute, distanceMatrix);
 
-                // First pass: Detect micro-clusters (very close outlets)
-                for (let i = 1; i < allCoords.length; i++) {
-                    if (visited.has(i)) continue;
-
-                    const microCluster = [i];
-                    visited.add(i);
-
-                    for (let j = i + 1; j < allCoords.length; j++) {
-                        if (visited.has(j)) continue;
-
-                        const distance = distanceMatrix[i][j];
-                        if (distance <= 500) { // 500m threshold for micro-clusters
-                            microCluster.push(j);
-                            visited.add(j);
-                        }
-                    }
-
-                    if (microCluster.length > 1) {
-                        microClusters.push(microCluster);
-                    }
-                }
-
-                // Reset visited for regular clusters
-                visited.clear();
-
-                // Second pass: Detect regular clusters
-                for (let i = 1; i < allCoords.length; i++) {
-                    if (visited.has(i)) continue;
-
-                    const cluster = [i];
-                    visited.add(i);
-
-                    for (let j = i + 1; j < allCoords.length; j++) {
-                        if (visited.has(j)) continue;
-
-                        const distance = distanceMatrix[i][j];
-                        if (distance > 500 && distance <= 2000) { // 500m - 2km for regular clusters
-                            cluster.push(j);
-                            visited.add(j);
-                        }
-                    }
-
-                    if (cluster.length > 1) {
-                        regularClusters.push(cluster);
-                    }
-                }
-
-                console.log(`Detected ${microClusters.length} micro-clusters and ${regularClusters.length} regular clusters`);
-                return { microClusters, regularClusters };
-            };
-
-            // Perfect micro-cluster sequencing
-            const optimizeMicroCluster = (cluster, fromIndex) => {
-                if (cluster.length <= 1) return cluster;
-
-                // For micro-clusters, use exhaustive search for perfect optimization
-                if (cluster.length <= 8) {
-                    const permute = (arr) => {
-                        if (arr.length <= 1) return [arr];
-                        const result = [];
-                        for (let i = 0; i < arr.length; i++) {
-                            const rest = permute([...arr.slice(0, i), ...arr.slice(i + 1)]);
-                            for (const perm of rest) {
-                                result.push([arr[i], ...perm]);
-                            }
-                        }
-                        return result;
-                    };
-
-                    const allPermutations = permute(cluster);
-                    let bestSequence = cluster;
-                    let bestDistance = Infinity;
-
-                    for (const sequence of allPermutations) {
-                        let totalDistance = distanceMatrix[fromIndex][sequence[0]];
-                        for (let i = 0; i < sequence.length - 1; i++) {
-                            totalDistance += distanceMatrix[sequence[i]][sequence[i + 1]];
-                        }
-
-                        if (totalDistance < bestDistance) {
-                            bestDistance = totalDistance;
-                            bestSequence = sequence;
-                        }
-                    }
-
-                    console.log(`Micro-cluster optimized: ${cluster.length} outlets, distance saved: ${((calculateDistance(cluster, fromIndex) - bestDistance) / 1000).toFixed(2)}km`);
-                    return bestSequence;
-                }
-
-                // For larger micro-clusters, use nearest neighbor within cluster
-                return optimizeClusterNearestNeighbor(cluster, fromIndex);
-            };
-
-            const calculateDistance = (sequence, fromIndex) => {
-                let total = distanceMatrix[fromIndex][sequence[0]];
-                for (let i = 0; i < sequence.length - 1; i++) {
-                    total += distanceMatrix[sequence[i]][sequence[i + 1]];
-                }
-                return total;
-            };
-
-            // Optimize cluster using nearest neighbor
-            const optimizeClusterNearestNeighbor = (cluster, fromIndex) => {
-                if (cluster.length <= 1) return cluster;
-
-                const sequence = [];
-                const unvisited = new Set(cluster);
-
-                // Start with the closest outlet to the fromIndex
-                let nearestDistance = Infinity;
-                let nearestOutlet = -1;
-
-                for (const outlet of cluster) {
-                    const distance = distanceMatrix[fromIndex][outlet];
-                    if (distance < nearestDistance) {
-                        nearestDistance = distance;
-                        nearestOutlet = outlet;
-                    }
-                }
-
-                sequence.push(nearestOutlet);
-                unvisited.delete(nearestOutlet);
-
-                // Continue with nearest neighbor within the cluster
-                while (unvisited.size > 0) {
-                    const currentOutlet = sequence[sequence.length - 1];
-                    nearestDistance = Infinity;
-                    nearestOutlet = -1;
-
-                    for (const outlet of unvisited) {
-                        const distance = distanceMatrix[currentOutlet][outlet];
-                        if (distance < nearestDistance) {
-                            nearestDistance = distance;
-                            nearestOutlet = outlet;
-                        }
-                    }
-
-                    if (nearestOutlet !== -1) {
-                        sequence.push(nearestOutlet);
-                        unvisited.delete(nearestOutlet);
-                    }
-                }
-
-                return sequence;
-            };
-
-            // Enhanced cluster-aware route construction
-            const buildClusterAwareRoute = () => {
-                const { microClusters, regularClusters } = detectAdvancedClusters();
-                const allClusters = [...microClusters, ...regularClusters];
-
-                // Create a map of outlet to cluster
-                const outletToCluster = new Map();
-                allClusters.forEach((cluster, clusterIndex) => {
-                    cluster.forEach(outlet => {
-                        outletToCluster.set(outlet, { cluster, index: clusterIndex, isMicro: clusterIndex < microClusters.length });
-                    });
-                });
-
-                const route = [0]; // Start with starting location
-                const visitedClusters = new Set();
-                const visitedOutlets = new Set();
-                const outletIndices = Array.from({ length: selectedOutlets.length }, (_, i) => i + 1);
-
-                console.log("Building cluster-aware route...");
-
-                while (visitedOutlets.size < outletIndices.length) {
-                    const currentPosition = route[route.length - 1];
-                    let bestNextMove = null;
-                    let bestDistance = Infinity;
-
-                    // Look for the nearest unvisited outlet
-                    for (const outletIndex of outletIndices) {
-                        if (visitedOutlets.has(outletIndex)) continue;
-
-                        const distance = distanceMatrix[currentPosition][outletIndex];
-                        const clusterInfo = outletToCluster.get(outletIndex);
-
-                        if (clusterInfo && !visitedClusters.has(clusterInfo.index)) {
-                            // This outlet belongs to an unvisited cluster
-                            if (distance < bestDistance) {
-                                bestDistance = distance;
-                                bestNextMove = {
-                                    type: 'cluster',
-                                    cluster: clusterInfo.cluster,
-                                    clusterIndex: clusterInfo.index,
-                                    isMicro: clusterInfo.isMicro,
-                                    entryPoint: outletIndex
-                                };
-                            }
-                        } else if (!clusterInfo) {
-                            // This is an isolated outlet
-                            if (distance < bestDistance) {
-                                bestDistance = distance;
-                                bestNextMove = {
-                                    type: 'single',
-                                    outlet: outletIndex
-                                };
-                            }
-                        }
-                    }
-
-                    if (bestNextMove) {
-                        if (bestNextMove.type === 'cluster') {
-                            // Process entire cluster
-                            const cluster = bestNextMove.cluster;
-                            const optimizedSequence = bestNextMove.isMicro
-                                ? optimizeMicroCluster(cluster, currentPosition)
-                                : optimizeClusterNearestNeighbor(cluster, currentPosition);
-
-                            console.log(`Processing ${bestNextMove.isMicro ? 'micro-' : ''}cluster of ${cluster.length} outlets starting from outlet ${optimizedSequence[0]}`);
-
-                            route.push(...optimizedSequence);
-                            cluster.forEach(outlet => visitedOutlets.add(outlet));
-                            visitedClusters.add(bestNextMove.clusterIndex);
-
-                        } else {
-                            // Process single outlet
-                            route.push(bestNextMove.outlet);
-                            visitedOutlets.add(bestNextMove.outlet);
-                            console.log(`Added isolated outlet ${bestNextMove.outlet}`);
-                        }
-                    } else {
-                        // Fallback: add nearest unvisited outlet
-                        let nearestOutlet = -1;
-                        let nearestDistance = Infinity;
-
-                        for (const outletIndex of outletIndices) {
-                            if (!visitedOutlets.has(outletIndex)) {
-                                const distance = distanceMatrix[currentPosition][outletIndex];
-                                if (distance < nearestDistance) {
-                                    nearestDistance = distance;
-                                    nearestOutlet = outletIndex;
-                                }
-                            }
-                        }
-
-                        if (nearestOutlet !== -1) {
-                            route.push(nearestOutlet);
-                            visitedOutlets.add(nearestOutlet);
-                            console.log(`Fallback: added outlet ${nearestOutlet}`);
-                        } else {
-                            break; // No more outlets to visit
-                        }
-                    }
-                }
-
-                return route;
-            };
-
-            // Advanced 2-opt optimization with cluster awareness
-            const advancedTwoOptOptimization = (route, distanceMatrix, maxIterations = 100) => {
-                let bestRoute = [...route];
-                let bestDistance = calculateRouteDistance(bestRoute, distanceMatrix, false);
-                let improved = true;
-                let iterations = 0;
-
-                console.log(`Starting 2-opt optimization on route of ${route.length} points...`);
-
-                while (improved && iterations < maxIterations) {
-                    improved = false;
-                    iterations++;
-
-                    for (let i = 1; i < route.length - 2; i++) {
-                        for (let j = i + 1; j < route.length; j++) {
-                            if (j - i === 1) continue; // Skip adjacent swaps
-
-                            // Check if this swap would break micro-clusters
-                            const outlet1 = route[i];
-                            const outlet2 = route[j];
-
-                            // Only allow swaps if outlets are reasonably close or if it significantly improves the route
-                            const swapDistance = distanceMatrix[outlet1][outlet2];
-                            const currentSegmentDistance = calculateRouteDistance(route.slice(i, j + 1), distanceMatrix, false);
-
-                            // Create new route with 2-opt swap
-                            const newRoute = [
-                                ...route.slice(0, i),
-                                ...route.slice(i, j + 1).reverse(),
-                                ...route.slice(j + 1)
-                            ];
-
-                            const newDistance = calculateRouteDistance(newRoute, distanceMatrix, false);
-                            const improvement = bestDistance - newDistance;
-
-                            // Accept improvement if it's significant or if outlets are very close
-                            if (improvement > 0 && (improvement > 100 || swapDistance < 1000)) {
-                                route = newRoute;
-                                bestRoute = [...newRoute];
-                                bestDistance = newDistance;
-                                improved = true;
-                                console.log(`2-opt improvement: ${(improvement / 1000).toFixed(2)}km saved`);
-                            }
-                        }
-                    }
-                }
-
-                console.log(`2-opt optimization completed after ${iterations} iterations`);
-                return bestRoute;
-            };
-
-            // Generate the optimal route
-            console.log("Building cluster-aware route...");
-            let bestRoute = buildClusterAwareRoute();
-
-            console.log("Applying advanced 2-opt optimization...");
-            bestRoute = advancedTwoOptOptimization(bestRoute, distanceMatrix);
+            // Use optimizedRoute for further processing (display, metrics, etc.)
+            let bestRoute = optimizedRoute;
 
             if (bestRoute.length > 2) {
                 // Find the index of the outlet nearest to the start (index 0)
@@ -890,7 +714,7 @@ function RouteOptimizer() {
                         <div style={{ fontSize: '24px', marginBottom: '15px' }}>🔄</div>
                         <h3 style={{ margin: '0 0 10px 0' }}>Optimizing Route...</h3>
                         <p style={{ margin: '0', color: '#666' }}>
-                            Please wait while we find the best route using multiple optimization strategies...
+                           
                         </p>
                     </div>
                 </div>
