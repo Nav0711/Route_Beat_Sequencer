@@ -1,4 +1,4 @@
-import RouteOptimizer from './components/RouteOptimizer';
+import RouteOptimizer from './RouteOptimizer';
 
 function App() {
   return (

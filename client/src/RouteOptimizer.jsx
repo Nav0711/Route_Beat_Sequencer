@@ -3,6 +3,9 @@ import L from 'leaflet';
 import * as XLSX from 'xlsx';
 import axios from 'axios';
 import 'leaflet/dist/leaflet.css';
+import FileUploadHandler from './components/FileUploadHandler';
+import BeatSelector from './components/BeatSelector';
+import UseCurrentLocation from './components/UseCurrentLocation';
 
 // Calculates the total distance of the route using the distance matrix
 function calculateRouteDistance(route, distanceMatrix, isClosed = false) {
@@ -175,46 +178,34 @@ function RouteOptimizer() {
         setMap(m);
     }, []);
 
-    const handleFile = (e) => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const data = new Uint8Array(event.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(sheet);
+    // ADD this new handler function to receive data from the FileUploadHandler component
+    const handleDataParsed = (parsedData) => {
+        setBeatData(parsedData);
+        // Clear selected outlets and reset state when new data is loaded
+        setSelectedOutlets([]);
+        setBeatSelect('');
+        setOptimizedSequence([]);
+        setRouteDistance(0);
+        setRouteDuration(0);
 
-            const parsed = {};
-            jsonData.forEach(row => {
-                const beat = row['Beat Name'] || row['Beat'] || row['beat'];
-                const outlet = row['Outlet ID'] || row['Outlet: Outlet Id'];
-                const lat = row['Latitude'] || row['lat'];
-                const lng = row['Longitude'] || row['lng'];
-                const outletName = row['Outlet Name'] || row['Outlet: Account Name'] || row['Outlet:Account Name'];
-
-                if (!beat || !outlet || !lat || !lng) return;
-                if (!parsed[beat]) parsed[beat] = [];
-
-                // Only add if not already present (by Outlet ID)
-                if (!parsed[beat].some(o => o.outlet === outlet)) {
-                    parsed[beat].push({
-                        outlet,
-                        lat: parseFloat(lat),
-                        lng: parseFloat(lng),
-                        outletName: outletName || 'N/A'
-                    });
+        // Clear map markers if map exists
+        if (map) {
+            map.eachLayer(layer => {
+                if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+                    map.removeLayer(layer);
                 }
             });
 
-            setBeatData(parsed);
-        };
-        reader.readAsArrayBuffer(file);
+            // Re-add start location marker if it exists
+            if (startCoord) {
+                L.marker(startCoord).addTo(map).bindPopup("Start Location").openPopup();
+            }
+        }
     };
 
-    const handleBeatChange = (e) => {
-        const beat = e.target.value;
+    const handleBeatChange = (beat, outlets) => {
         setBeatSelect(beat);
-        setSelectedOutlets(beatData[beat] || []);
+        setSelectedOutlets(outlets);
         setOptimizedSequence([]); // Reset optimized sequence
         setRouteDistance(0);
         setRouteDuration(0);
@@ -233,25 +224,7 @@ function RouteOptimizer() {
         }
     };
 
-    const useCurrentLocation = () => {
-        navigator.geolocation.getCurrentPosition(pos => {
-            const coords = [pos.coords.latitude, pos.coords.longitude];
-            setStartCoord(coords);
-            setManualInput(`${coords[0].toFixed(6)},${coords[1].toFixed(6)}`);
-
-            if (map) {
-                // Clear existing markers
-                map.eachLayer(layer => {
-                    if (layer instanceof L.Marker) {
-                        map.removeLayer(layer);
-                    }
-                });
-
-                L.marker(coords).addTo(map).bindPopup("Start Location").openPopup();
-                map.setView(coords, 12);
-            }
-        });
-    };
+    
 
     // Enhanced distance calculation for validation
     const calculateHaversineDistance = (lat1, lng1, lat2, lng2) => {
@@ -765,40 +738,18 @@ function RouteOptimizer() {
                 marginBottom: '20px',
                 border: '1px solid #dee2e6'
             }}>
-                <div style={{ marginBottom: '15px' }}>
-                    <input
-                        type="file"
-                        onChange={handleFile}
-                        accept=".xlsx, .xls"
-                        style={{
-                            marginRight: '10px',
-                            padding: '5px',
-                            border: '1px solid #ccc',
-                            borderRadius: '4px'
-                        }}
-                    />
-                    <select
-                        onChange={handleBeatChange}
-                        value={beatSelect}
-                        style={{
-                            padding: '8px',
-                            marginRight: '10px',
-                            border: '1px solid #ccc',
-                            borderRadius: '4px',
-                            minWidth: '150px'
-                        }}
-                    >
-                        <option value="">Select Beat</option>
-                        {Object.keys(beatData).map(beat => (
-                            <option key={beat} value={beat}>{beat}</option>
-                        ))}
-                    </select>
-                    {selectedOutlets.length > 0 && (
-                        <span style={{ color: '#28a745', fontWeight: 'bold' }}>
-                            {selectedOutlets.length} outlets loaded
-                        </span>
-                    )}
-                </div>
+                <FileUploadHandler
+                    onDataParsed={handleDataParsed}
+                    selectedOutletsCount={selectedOutlets.length}
+                />
+                
+                <BeatSelector
+                    beatData={beatData}
+                    selectedBeat={beatSelect}
+                    onBeatChange={handleBeatChange}
+                    selectedOutletsCount={selectedOutlets.length}
+                    disabled={isOptimizing}
+                />
 
                 <div style={{ marginBottom: '15px' }}>
                     <input
@@ -840,21 +791,7 @@ function RouteOptimizer() {
                         }}
                     />
 
-                    <button
-                        onClick={useCurrentLocation}
-                        style={{
-                            padding: '8px 15px',
-                            backgroundColor: '#007bff',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            marginRight: '10px',
-                            cursor: 'pointer',
-                            fontWeight: 'bold'
-                        }}
-                    >
-                        📍 Use Current Location
-                    </button>
+                    <UseCurrentLocation setStartCoord={setStartCoord} setManualInput={setManualInput} map={map} />
 
                     <button
                         onClick={generateOptimizedRoute}
