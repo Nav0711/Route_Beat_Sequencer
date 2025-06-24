@@ -8,10 +8,11 @@ import BeatSelector from './components/BeatSelector';
 import UseCurrentLocation from './components/UseCurrentLocation';
 import RouteOptimizationService from './components/services/RouteOptimizationService';
 import RouteDownloadService from './components/services/RouteDownloadService';
+import MapDisplay from './components/MapDisplay';
 
 
 function RouteOptimizer() {
-    const mapRef = useRef(null);
+
     const [map, setMap] = useState(null);
     const [beatData, setBeatData] = useState({});
     const [selectedOutlets, setSelectedOutlets] = useState([]);
@@ -140,6 +141,8 @@ function RouteOptimizer() {
         }
     };
 
+    //download excek file in seprate component
+    // This function will be called when the user clicks the download button
     const downloadOptimizedRoute = () => {
         downloadService.downloadOptimizedRoute(
             optimizedSequence,
@@ -270,16 +273,7 @@ function RouteOptimizer() {
                 </div>
             )}
 
-            <div
-                id="map"
-                ref={mapRef}
-                style={{
-                    height: "600px",
-                    border: '2px solid #007bff',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
-                }}
-            />
+            <MapDisplay map={map} setMap={setMap} startCoord={startCoord}/>
 
             {isOptimizing && (
                 <div style={{
