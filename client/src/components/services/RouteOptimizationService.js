@@ -252,7 +252,7 @@ class RouteOptimizationService {
 
     async getDistanceMatrix(coordinates) {
         const matrixCoords = coordinates.map(coord => [coord[1], coord[0]]);
-        
+
         const response = await axios.post('https://api.openrouteservice.org/v2/matrix/driving-car', {
             locations: matrixCoords,
             metrics: ["distance", "duration"]
@@ -506,41 +506,17 @@ class RouteOptimizationService {
         // Generate route options
         const routeOptions = this.generateRouteOptions(distanceMatrix, durationMatrix, selectedOutlets, startCoord);
 
-        console.log("Route options generated:");
-        routeOptions.forEach((option, index) => {
-            console.log(`${index + 1}. ${option.name}: ${(option.distance / 1000).toFixed(2)}km, ${(option.duration / 60).toFixed(0)}min`);
-        });
-
-        // Present options to user
-        const optionsList = routeOptions.map((option, index) =>
-            `${index + 1}. ${option.name}\n   Distance: ${(option.distance / 1000).toFixed(2)} km | Duration: ${(option.duration / 60).toFixed(0)} min\n   ${option.description}`
-        ).join('\n\n');
-
-        const userChoice = prompt(
-            `🚗 Choose your preferred route optimization:\n\n${optionsList}\n\nEnter option number (1-4), or press Cancel for automatic best:`,
-            "1"
-        );
-
-        let selectedOption;
-        if (userChoice && userChoice >= 1 && userChoice <= 4) {
-            selectedOption = routeOptions[parseInt(userChoice) - 1];
-            console.log(`User selected: ${selectedOption.name}`);
-        } else {
-            selectedOption = routeOptions[0];
-            console.log("Using automatic best option (shortest distance)");
-        }
-
+        // By default, select the first (best) option
+        const selectedOption = routeOptions[0];
         const finalRoute = selectedOption.route;
         const orderedOutlets = finalRoute.slice(1).map(i => selectedOutlets[i - 1]);
         const orderedCoords = [startCoord, ...orderedOutlets.map(outlet => [outlet.lat, outlet.lng])];
 
-        console.log(`Selected route (${selectedOption.name}): ${(selectedOption.distance / 1000).toFixed(2)} km, ${(selectedOption.duration / 60).toFixed(0)} min`);
-
-        // Get route geometry
+        // Get route geometry for the default option
         console.log("Getting route geometry...");
         const geometry = await this.getRouteGeometry(orderedCoords);
-
         return {
+            routeOptions,
             selectedOption,
             orderedOutlets,
             orderedCoords,

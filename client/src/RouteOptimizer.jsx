@@ -25,6 +25,10 @@ function RouteOptimizer() {
     const [isOptimizing, setIsOptimizing] = useState(false);
     const [routeService] = useState(() => new RouteOptimizationService());
     const [downloadService] = useState(() => new RouteDownloadService());
+    const [routeOptions, setRouteOptions] = useState([]);
+    const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
+    const [routeGeometry, setRouteGeometry] = useState(null);
+    const mapRef = useRef(null);
 
 
     useEffect(() => {
@@ -94,13 +98,10 @@ function RouteOptimizer() {
         }
 
         setIsOptimizing(true);
-
-        // Reset previous optimization results
         setOptimizedSequence([]);
         setRouteDistance(0);
         setRouteDuration(0);
 
-        // Clear existing map layers
         if (map) {
             map.eachLayer(layer => {
                 if (layer instanceof L.Marker || layer instanceof L.Polyline) {
@@ -112,30 +113,34 @@ function RouteOptimizer() {
         try {
             const result = await routeService.optimizeRoute(startCoord, selectedOutlets);
 
-            // Update state with results
-            setRouteDistance((result.distance / 1000).toFixed(2));
-            setRouteDuration((result.duration / 60).toFixed(0));
-            setOptimizedSequence(result.orderedOutlets);
+            setRouteOptions(result.routeOptions);
+            setSelectedOptionIndex(0);
+
+            setRouteDistance((result.routeOptions[0].distance / 1000).toFixed(2));
+            setRouteDuration((result.routeOptions[0].duration / 60).toFixed(0));
+            setOptimizedSequence(result.routeOptions[0].route.slice(1).map(i => selectedOutlets[i - 1]));
+            setRouteGeometry(result.geometry);
 
             // Visualize on map
             routeService.visualizeRoute(
                 map,
                 result.geometry,
-                result.orderedCoords,
-                result.orderedOutlets,
+                result.routeOptions[0].route.map(i => i === 0 ? startCoord : [selectedOutlets[i - 1].lat, selectedOutlets[i - 1].lng]),
+                result.routeOptions[0].route.slice(1).map(i => selectedOutlets[i - 1]),
                 startCoord,
-                result.selectedOption
+                result.routeOptions[0]
             );
 
-            console.log(`Route optimization completed using: ${result.selectedOption.name}`);
+            console.log(`Route optimization completed using: ${result.routeOptions[0].name}`);
 
         } catch (err) {
             console.error("Route optimization error:", err);
             alert(`Failed to optimize route: ${err.response?.data?.error?.message || err.message}`);
-
             setOptimizedSequence([]);
             setRouteDistance(0);
             setRouteDuration(0);
+            setRouteOptions([]);
+            setSelectedOptionIndex(0);
         } finally {
             setIsOptimizing(false);
         }
@@ -252,6 +257,56 @@ function RouteOptimizer() {
                         📊 Download Excel
                     </button>
                 </div>
+
+                {routeOptions.length > 0 && (
+                    <div style={{ marginBottom: '20px' }}>
+                        <label htmlFor="routeOptionSelect" style={{ marginRight: '10px', fontWeight: 'bold' }}>
+                            Route Option:
+                        </label>
+                        <select
+                            id="routeOptionSelect"
+                            value={selectedOptionIndex}
+                            onChange={async (e) => {
+                                const idx = parseInt(e.target.value, 10);
+                                setSelectedOptionIndex(idx);
+
+                                const selected = routeOptions[idx];
+                                setRouteDistance((selected.distance / 1000).toFixed(2));
+                                setRouteDuration((selected.duration / 60).toFixed(0));
+                                setOptimizedSequence(selected.route.slice(1).map(i => selectedOutlets[i - 1]));
+
+                                // Prepare coordinates for geometry
+                                const orderedCoords = selected.route.map(i =>
+                                    i === 0 ? startCoord : [selectedOutlets[i - 1].lat, selectedOutlets[i - 1].lng]
+                                );
+                                const geometry = await routeService.getRouteGeometry(orderedCoords);
+                                setRouteGeometry(geometry);
+
+                                // Visualize on map
+                                routeService.visualizeRoute(
+                                    map,
+                                    geometry,
+                                    orderedCoords,
+                                    selected.route.slice(1).map(i => selectedOutlets[i - 1]),
+                                    startCoord,
+                                    selected
+                                );
+                            }}
+                            style={{
+                                padding: '6px 12px',
+                                borderRadius: '4px',
+                                border: '1px solid #ccc',
+                                fontWeight: 'bold'
+                            }}
+                        >
+                            {routeOptions.map((option, idx) => (
+                                <option key={option.name} value={idx}>
+                                    {option.name} ({(option.distance / 1000).toFixed(2)} km)
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
             </div>
 
             {optimizedSequence.length > 0 && (
@@ -273,7 +328,17 @@ function RouteOptimizer() {
                 </div>
             )}
 
-            <MapDisplay map={map} setMap={setMap} startCoord={startCoord}/>
+            <div
+                ref={mapRef}
+                style={{
+                    height: '500px',
+                    width: '100%',
+                    margin: '0 auto',
+                    borderRadius: '8px',
+                    border: '2px solid #007bff',
+                    marginBottom: '30px'
+                }}
+            ></div>
 
             {isOptimizing && (
                 <div style={{
