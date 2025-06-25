@@ -340,6 +340,99 @@ function RouteOptimizer() {
                 }}
             ></div>
 
+            {/* Improved Route Sequence Overview */}
+            {optimizedSequence.length > 0 && (
+                <div
+                    style={{
+                        background: '#fff',
+                        border: '1px solid #007bff',
+                        borderRadius: '8px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
+                        padding: '20px',
+                        marginBottom: '30px',
+                        maxWidth: '100%',
+                        overflowX: 'auto'
+                    }}
+                >
+                    <h3 style={{ color: '#007bff', marginBottom: '18px', textAlign: 'center' }}>
+                        🗺️ Route Sequence Overview
+                    </h3>
+                    <div style={{
+                        display: 'flex',
+                        flexDirection: 'row',
+                        gap: '18px',
+                        overflowX: 'auto',
+                        paddingBottom: '10px'
+                    }}>
+                        {/* Start Location */}
+                        <div style={{
+                            minWidth: '220px',
+                            background: '#e9f7ef',
+                            border: '2px solid #28a745',
+                            borderRadius: '8px',
+                            padding: '14px',
+                            textAlign: 'center',
+                            fontWeight: 'bold',
+                            color: '#155724',
+                            boxShadow: '0 1px 4px rgba(40,167,69,0.08)'
+                        }}>
+                            <div style={{ fontSize: '22px', marginBottom: '6px' }}>🏁</div>
+                            <div>Start</div>
+                            <div style={{ fontSize: '13px', marginTop: '6px', color: '#333' }}>
+                                {startCoord ? `${startCoord[0].toFixed(5)}, ${startCoord[1].toFixed(5)}` : ''}
+                            </div>
+                        </div>
+                        {/* Stops */}
+                        {optimizedSequence.map((outlet, idx) => (
+                            <div
+                                key={outlet.outlet || idx}
+                                style={{
+                                    minWidth: '220px',
+                                    background: '#f1f8ff',
+                                    border: '2px solid #007bff',
+                                    borderRadius: '8px',
+                                    padding: '14px',
+                                    textAlign: 'center',
+                                    color: '#004085',
+                                    boxShadow: '0 1px 4px rgba(0,123,255,0.08)',
+                                    position: 'relative'
+                                }}
+                            >
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '10px',
+                                    left: '10px',
+                                    background: '#007bff',
+                                    color: '#fff',
+                                    borderRadius: '50%',
+                                    width: '28px',
+                                    height: '28px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontWeight: 'bold',
+                                    fontSize: '15px',
+                                    border: '2px solid #fff',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.07)'
+                                }}>
+                                    {idx + 1}
+                                </div>
+                                <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '6px', marginTop: '8px' }}>
+                                    {outlet.outletName || 'Unnamed'}
+                                </div>
+                                <div style={{ fontSize: '13px', color: '#333', marginBottom: '4px' }}>
+                                    <strong>ID:</strong> {outlet.outlet || 'N/A'}
+                                </div>
+                                <div style={{ fontSize: '13px', color: '#333' }}>
+                                    <strong>Lat:</strong> {outlet.lat?.toFixed(5)}<br />
+                                    <strong>Lng:</strong> {outlet.lng?.toFixed(5)}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {isOptimizing && (
                 <div style={{
                     position: 'fixed',
