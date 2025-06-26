@@ -515,6 +515,7 @@ class RouteOptimizationService {
         // Get route geometry for the default option
         console.log("Getting route geometry...");
         const geometry = await this.getRouteGeometry(orderedCoords);
+        
         return {
             routeOptions,
             selectedOption,

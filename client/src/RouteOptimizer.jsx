@@ -267,6 +267,7 @@ function RouteOptimizer() {
                             id="routeOptionSelect"
                             value={selectedOptionIndex}
                             onChange={async (e) => {
+                                setIsOptimizing(true); // Show loading screen
                                 const idx = parseInt(e.target.value, 10);
                                 setSelectedOptionIndex(idx);
 
@@ -291,6 +292,7 @@ function RouteOptimizer() {
                                     startCoord,
                                     selected
                                 );
+                                setIsOptimizing(false); // Hide loading screen
                             }}
                             style={{
                                 padding: '6px 12px',
@@ -433,7 +435,7 @@ function RouteOptimizer() {
                 </div>
             )}
 
-            {isOptimizing && (
+            {(isOptimizing) && (
                 <div style={{
                     position: 'fixed',
                     top: 0,
