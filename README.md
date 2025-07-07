@@ -22,27 +22,27 @@
 
 ## 📁 Folder Structure
 ```
-├Route_Beat_Sequencer/
-│   ├── client/
-│   │   ├── public/
-│   │   ├── src/
-│   │   │   ├── assets/
-│   │   │   ├── components/
-│   │   │   │   ├── services/
-│   │   ├── .env
-│   │   ├── .gitignore
-│   │   ├── eslint.config.js
-│   │   ├── index.html
-│   │   ├── package-lock.json
-│   │   ├── package.json
-│   │   ├── vite.config.js
-│   ├── server/
-│   │   ├── index.js
-│   │   ├── .env
-│   │   ├── package-lock.json
-│   │   ├── package.json
+Route_Beat_Sequencer/
+├── client/
+│   ├── public/
+│   ├── src/
+│   │   ├── assets/
+│   │   ├── components/
+│   │   │   ├── services/
+│   ├── .env
+│   ├── .gitignore
+│   ├── eslint.config.js
+│   ├── index.html
 │   ├── package-lock.json
 │   ├── package.json
+│   ├── vite.config.js
+├── server/
+│   ├── index.js
+│   ├── .env
+│   ├── package-lock.json
+│   ├── package.json
+├── package-lock.json
+├── package.json
 ```
 
 ## 🔧 Installation
