@@ -21,14 +21,29 @@
 - **Libraries:** Axios, XLSX (SheetJS)
 
 ## 📁 Folder Structure
-root/
-- ├── client/ # React frontend (if separated)
-- │ └── src/
-- │ └── RouteOptimizer.jsx
-- ├── server/ # Express backend (optional if needed)
-- ├── package.json # Root config
-- └── README.md **You're here!**
-
+```
+├Route_Beat_Sequencer/
+│   ├── client/
+│   │   ├── public/
+│   │   ├── src/
+│   │   │   ├── assets/
+│   │   │   ├── components/
+│   │   │   │   ├── services/
+│   │   ├── .env
+│   │   ├── .gitignore
+│   │   ├── eslint.config.js
+│   │   ├── index.html
+│   │   ├── package-lock.json
+│   │   ├── package.json
+│   │   ├── vite.config.js
+│   ├── server/
+│   │   ├── index.js
+│   │   ├── .env
+│   │   ├── package-lock.json
+│   │   ├── package.json
+│   ├── package-lock.json
+│   ├── package.json
+```
 
 ## 🔧 Installation
 
