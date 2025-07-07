@@ -25,7 +25,6 @@
 ## 📁 Folder Structure
 ```
 Route_Beat_Sequencer/
-<<<<<<< HEAD
 ├── client/
 │   ├── public/
 │   ├── src/
@@ -36,26 +35,6 @@ Route_Beat_Sequencer/
 │   ├── .gitignore
 │   ├── eslint.config.js
 │   ├── index.html
-=======
-│   ├── client/
-│   │   ├── public/
-│   │   ├── src/
-│   │   │   ├── assets/
-│   │   │   ├── components/
-│   │   │   │   ├── services/
-│   │   ├── .env
-│   │   ├── .gitignore
-│   │   ├── eslint.config.js
-│   │   ├── index.html
-│   │   ├── package-lock.json
-│   │   ├── package.json
-│   │   ├── vite.config.js
-│   ├── server/
-│   │   ├── index.js
-│   │   ├── .env
-│   │   ├── package-lock.json
-│   │   ├── package.json
->>>>>>> b4f82ae4a87fdd8440c691d34212e6860a9172b5
 │   ├── package-lock.json
 │   ├── package.json
 │   ├── vite.config.js
