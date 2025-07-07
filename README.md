@@ -1,4 +1,6 @@
-# 🚗 Route_Beat_Sequencer
+<h1 align="center" style="bold">
+🚗 Route Beat Sequencer
+</h1>   
 
 **Route_Beat_Sequencer** is a full-stack web application built using the MERN stack that enables efficient and optimized route planning for field operations based on beat and outlet data from Excel files.
 
@@ -22,7 +24,7 @@
 
 ## 📁 Folder Structure
 ```
-├Route_Beat_Sequencer/
+Route_Beat_Sequencer/
 │   ├── client/
 │   │   ├── public/
 │   │   ├── src/
@@ -48,13 +50,59 @@
 ## 🔧 Installation
 
 1. **Clone the repository**
+   ```
    git clone https://github.com/Nav0711/Route_Beat_Sequencer.git/
    cd Route_Beat_Sequencer
-2. **Install Dependencies**
-   npm install
+   ```
+2. **Install Dependencies, from terminal as follow**
+   1) ```bash
+      cd Route_Beat_Sequencer
+      npm i
+      ```
+   2) ```bash
+      cd Route_Beat_Sequencer/client
+      npm i
+      ```
+   3) ```bash
+      cd Route_Beat_Sequencer/server
+      npm i
+      ```
 3. **Create .env file in client folder**
-   Add VITE_ORS_API_KEY=your_openrouteservice_api_key
-4. **Start the development server**
+   Add
+   1) ```bash
+      npm install dotenv
+      ```
+   2) ```bash
+      cd Route_Beat_Sequencer/client
+      ```
+   3) ```
+      touch .env
+      ```
+   4) In the .env file add this:
+      ```bash
+      VITE_ORS_API_KEY=your_openrouteservice_api_key
+      ```
+4. **Start the development server in client or server directory**
+   ```bash
+   cd Route_Beat_Sequencer/<client or server>
    npm run dev
+   ```
 5. **Or from the root if the full stack is integrated:**
+    ```bash
    npm run start
+   ```
+
+
+    
+## 📬 Contact
+If you'd like to collaborate, hire, or provide feedback:
+
+- 📧 **Email**: navvysingh07@gmail.com
+- 🔗 **LinkedIn**: linkedin.com/in/navdeepsingh0711
+- 💻 **GitHub**: github.com/Nav0711
+
+---
+
+<h2 align="center">
+   Thank You and Enjoy
+</h2>
