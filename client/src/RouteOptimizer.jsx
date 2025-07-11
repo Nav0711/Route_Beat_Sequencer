@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import L from 'leaflet';
-import * as XLSX from 'xlsx';
+// import * as XLSX from 'xlsx';
 import axios from 'axios';
 import 'leaflet/dist/leaflet.css';
 import FileUploadHandler from './components/FileUploadHandler';
