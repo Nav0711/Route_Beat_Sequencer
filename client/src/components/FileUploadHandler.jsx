@@ -1,59 +1,81 @@
 import React from 'react';
-import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 
 const FileUploadHandler = ({ onDataParsed, selectedOutletsCount }) => {
-    const handleFile = (e) => {
+    const handleFile = async (e) => {
         const file = e.target.files[0];
         if (!file) {
             onDataParsed({});
             return;
         }
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                const data = new Uint8Array(event.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                const jsonData = XLSX.utils.sheet_to_json(sheet);
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(arrayBuffer);
+            
+            const worksheet = workbook.getWorksheet(1); // Get first worksheet
+            
+            if (!worksheet) {
+                alert('No worksheet found in the file.');
+                onDataParsed({});
+                return;
+            }
 
-                const parsed = {};
-                jsonData.forEach(row => {
-                    const beat = row['Beat Name'] || row['Beat'] || row['beat'];
-                    const outlet = row['Outlet ID'] || row['Outlet: Outlet Id'];
-                    const lat = row['Latitude'] || row['lat'];
-                    const lng = row['Longitude'] || row['lng'];
-                    const outletName = row['Outlet Name'] || row['Outlet: Account Name'] || row['Outlet:Account Name'];
+            const jsonData = [];
+            const headers = [];
+            
+            // Get headers from first row
+            const firstRow = worksheet.getRow(1);
+            firstRow.eachCell((cell, colNumber) => {
+                headers[colNumber] = cell.value;
+            });
 
-                    if (!beat || !outlet || !lat || !lng) return;
-                    if (!parsed[beat]) parsed[beat] = [];
-
-                    // Only add if not already present (by Outlet ID)
-                    if (!parsed[beat].some(o => o.outlet === outlet)) {
-                        parsed[beat].push({
-                            outlet,
-                            lat: parseFloat(lat),
-                            lng: parseFloat(lng),
-                            outletName: outletName || 'N/A'
-                        });
+            // Process data rows
+            worksheet.eachRow((row, rowNumber) => {
+                if (rowNumber === 1) return; // Skip header row
+                
+                const rowData = {};
+                row.eachCell((cell, colNumber) => {
+                    if (headers[colNumber]) {
+                        rowData[headers[colNumber]] = cell.value;
                     }
                 });
+                
+                // Only add rows that have data
+                if (Object.keys(rowData).length > 0) {
+                    jsonData.push(rowData);
+                }
+            });
 
-                onDataParsed(parsed);
-            } catch (error) {
-                console.error('Error parsing file:', error);
-                alert('Error parsing file. Please check the file format.');
-                onDataParsed({});
-            }
-        };
-        
-        reader.onerror = () => {
-            console.error('Error reading file');
-            alert('Error reading file. Please try again.');
+            const parsed = {};
+            jsonData.forEach(row => {
+                const beat = row['Beat Name'] || row['Beat'] || row['beat'];
+                const outlet = row['Outlet ID'] || row['Outlet: Outlet Id'];
+                const lat = row['Latitude'] || row['lat'];
+                const lng = row['Longitude'] || row['lng'];
+                const outletName = row['Outlet Name'] || row['Outlet: Account Name'] || row['Outlet:Account Name'];
+
+                if (!beat || !outlet || !lat || !lng) return;
+                if (!parsed[beat]) parsed[beat] = [];
+
+                // Only add if not already present (by Outlet ID)
+                if (!parsed[beat].some(o => o.outlet === outlet)) {
+                    parsed[beat].push({
+                        outlet,
+                        lat: parseFloat(lat),
+                        lng: parseFloat(lng),
+                        outletName: outletName || 'N/A'
+                    });
+                }
+            });
+
+            onDataParsed(parsed);
+        } catch (error) {
+            console.error('Error parsing file:', error);
+            alert('Error parsing file. Please check the file format.');
             onDataParsed({});
-        };
-
-        reader.readAsArrayBuffer(file);
+        }
     };
 
     return (

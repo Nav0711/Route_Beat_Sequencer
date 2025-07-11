@@ -9,9 +9,9 @@ export default defineConfig({
   plugins: [tailwindcss()],
   plugins: [react()],
   server: {
-    proxy: {
-      '/api': 'http://localhost:5000'
+    open : true,
+    '/api': 'http://localhost:5000',
     }
-  }
+  
 });
 

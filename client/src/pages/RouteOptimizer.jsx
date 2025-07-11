@@ -1,14 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import L from 'leaflet';
-import * as XLSX from 'xlsx';
+// import * as XLSX from 'xlsx';
 import axios from 'axios';
 import 'leaflet/dist/leaflet.css';
-import FileUploadHandler from './components/FileUploadHandler';
-import BeatSelector from './components/BeatSelector';
-import UseCurrentLocation from './components/UseCurrentLocation';
-import RouteOptimizationService from './components/services/RouteOptimizationService';
-import RouteDownloadService from './components/services/RouteDownloadService';
-import MapDisplay from './components/MapDisplay';
+import FileUploadHandler from '../components/FileUploadHandler';
+import BeatSelector from '../components/BeatSelector';
+import UseCurrentLocation from '../components/UseCurrentLocation';
+import RouteOptimizationService from '../components/services/RouteOptimizationService';
+import RouteDownloadService from '../components/services/RouteDownloadService';
+import MapDisplay from '../components/MapDisplay';
 
 
 function RouteOptimizer() {

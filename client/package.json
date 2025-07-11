@@ -12,11 +12,11 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.11",
     "axios": "^1.9.0",
+    "exceljs": "^4.4.0",
     "google-polyline": "^1.0.3",
     "leaflet": "^1.9.4",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "xlsx": "^0.18.5"
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
